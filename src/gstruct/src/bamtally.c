@@ -1,4 +1,4 @@
-static char rcsid[] = "$Id: bamtally.c 129100 2014-03-04 18:45:02Z twu $";
+static char rcsid[] = "$Id: bamtally.c 136235 2014-05-14 20:20:05Z twu $";
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -2513,7 +2513,7 @@ iit_block (List_T *intervallist, List_T *labellist, List_T *datalist,
 	      bytes = push_int(&nbytes,bytes,match_array[j]->shift);
 	      bytes = push_int(&nbytes,bytes,match_array[j]->count);
 	    }
-            FREE(match_array);
+	    FREE(match_array);
 	  } else {
 	    length = 0;
 	    for (shift = 1; shift < this->n_matches_byshift_minus; shift++) {
@@ -2552,7 +2552,7 @@ iit_block (List_T *intervallist, List_T *labellist, List_T *datalist,
 	      bytes = push_int(&nbytes,bytes,match_array[j]->quality - quality_score_adj);
 	      bytes = push_int(&nbytes,bytes,match_array[j]->count);
 	    }
-            FREE(match_array);
+	    FREE(match_array);
 	  } else {
 	    length = 0;
 	    for (quality = 0; quality < this->n_matches_byquality; quality++) {
@@ -2603,8 +2603,8 @@ iit_block (List_T *intervallist, List_T *labellist, List_T *datalist,
 	    }
 	    FREE(mm_subarray);
 	  }
-          FREE(mm_array);
-          
+	  FREE(mm_array);
+
 	  for (ptr = unique_mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
 	    mismatch0 = List_head(ptr);
 	    Mismatch_free(&mismatch0);
