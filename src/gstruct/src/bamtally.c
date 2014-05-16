@@ -1,4 +1,4 @@
-static char rcsid[] = "$Id: bamtally.c 136235 2014-05-14 20:20:05Z twu $";
+static char rcsid[] = "$Id: bamtally.c 136420 2014-05-15 21:37:42Z twu $";
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -1614,15 +1614,30 @@ print_block (T *block_tallies, Genomicpos_T blockstart, Genomicpos_T blockptr,
   total = 0;
   for (blocki = 0; blocki < lasti; blocki++) {
     this = block_tallies[blocki];
-    total += this->nmatches;
-    for (ptr = this->mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
-      mismatch = (Mismatch_T) List_head(ptr);
-      total += mismatch->count;
+    if (pass_variant_filter_p(this->nmatches,this->mismatches_byshift,min_depth,variant_strands
+) == false) {
+      /* Skip */
+    } else if (pass_difference_filter_p(probs,loglik,this,genome,
+					printchr,chroffset,chrpos,
+					quality_score_adj,genomic_diff_p) == false) {
+      /* Skip */
+    } else {
+      total += this->nmatches;
+      for (ptr = this->mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
+	mismatch = (Mismatch_T) List_head(ptr);
+	total += mismatch->count;
+      }
     }
   }
   
-  /* Total could be 0 if the block is outside chrstart..chrend */
-  if (total > 0) {
+  if (total <= 0) {
+    /* Total could be 0 if the block is outside chrstart..chrend or if all positions fail variant filter */
+    for (blocki = 0; blocki < lasti; blocki++) {
+      this = block_tallies[blocki];
+      Tally_clear(this);
+    }
+
+  } else {
     if (blockp == true) {
       printf(">%ld %s:%u..%u\n",total,printchr,blockstart,blockptr-1U);
     }
@@ -2128,15 +2143,30 @@ tally_block (long int *tally_matches, long int *tally_mismatches,
   total = 0;
   for (blocki = 0; blocki < lasti; blocki++) {
     this = block_tallies[blocki];
-    total += this->nmatches;
-    for (ptr = this->mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
-      mismatch = (Mismatch_T) List_head(ptr);
-      total += mismatch->count;
+    if (pass_variant_filter_p(this->nmatches,this->mismatches_byshift,
+			      min_depth,variant_strands) == false) {
+      /* Skip */
+    } else if (pass_difference_filter_p(probs,loglik,this,genome,
+					printchr,chroffset,chrpos,
+					quality_score_adj,genomic_diff_p) == false) {
+      /* Skip */
+    } else {
+      total += this->nmatches;
+      for (ptr = this->mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
+	mismatch = (Mismatch_T) List_head(ptr);
+	total += mismatch->count;
+      }
     }
   }
   
-  /* Total could be 0 if the block is outside chrstart..chrend */
-  if (total > 0) {
+  if (total <= 0) {
+    /* Total could be 0 if the block is outside chrstart..chrend or if all positions fail variant filter */
+    for (blocki = 0; blocki < lasti; blocki++) {
+      this = block_tallies[blocki];
+      Tally_clear(this);
+    }
+    
+  } else {
     for (blocki = 0; blocki < lasti; blocki++) {
       this = block_tallies[blocki];
       chrpos = blockstart + blocki;
@@ -2258,7 +2288,10 @@ iit_block (List_T *intervallist, List_T *labellist, List_T *datalist,
   total = 0;
   for (blocki = 0; blocki < lasti; blocki++) {
     this = block_tallies[blocki];
-    if (pass_variant_filter_p(this->nmatches,this->mismatches_byshift,min_depth,variant_strands) == true) {
+    if (pass_variant_filter_p(this->nmatches,this->mismatches_byshift,min_depth,variant_strands)
+ == false) {
+      /* Skip */
+    } else {
       total += this->nmatches;
       for (ptr = this->mismatches_byshift; ptr != NULL; ptr = List_next(ptr)) {
 	mismatch = (Mismatch_T) List_head(ptr);
@@ -2267,8 +2300,14 @@ iit_block (List_T *intervallist, List_T *labellist, List_T *datalist,
     }
   }
   
-  /* Total could be 0 if the block is outside chrstart..chrend */
-  if (total > 0) {
+  if (total <= 0) {
+    /* Total could be 0 if the block is outside chrstart..chrend or if all positions fail variant filter */
+    for (blocki = 0; blocki < lasti; blocki++) {
+      this = block_tallies[blocki];
+      Tally_clear(this);
+    }
+
+  } else {
     sprintf(Buffer,"%ld",total);
     label = (char *) CALLOC(strlen(Buffer)+1,sizeof(char));
     strcpy(label,Buffer);
@@ -3604,6 +3643,14 @@ Bamtally_run (long int **tally_matches, long int **tally_mismatches,
 
   T *alloc_tallies, *block_tallies, *alloc_tallies_alloc, *block_tallies_alloc;
   
+#if 0
+  /* How gmapR calls Bamtally_iit */
+  minimum_mapq = 13;
+  variant_strands = 1;
+  min_depth = 0;
+  print_indels_p = true;
+  ignore_duplicates_p = true;
+#endif
 
   /* Create tally at position N to store n_fromleft */
   alloc_tallies_alloc = (T *) CALLOC(alloclength + 2*max_softclip + 1,sizeof(T));
@@ -4251,7 +4298,7 @@ Bamtally_iit (Bamreader_T bamreader, char *desired_chr, char *bam_lacks_chr,
       Bamtally_run(&tally_matches,&tally_mismatches,
                    &intervallist,&labellist,&datalist,
                    quality_counts_match,quality_counts_mismatch,
-                   bamreader,genome,/*printchr*/chr,chroffset,chrstart,chrend,alloclength,
+                   bamreader,genome,/*printchr*/chrptr,chroffset,chrstart,chrend,alloclength,
                    /*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
                    desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
                    need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
