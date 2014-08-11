@@ -66,7 +66,6 @@ setMethod("bam_tally", "GmapBamReader",
             }
 
             param_list$genome <- NULL
-            
             TallyIIT(do.call(.bam_tally_C, c(list(x), param_list)), genome,
                      as(x, "BamFile"))
           })
@@ -94,7 +93,7 @@ variantSummary <- function(x, read_pos_breaks = NULL, high_base_quality = 0L,
                    "count.minus", "count.minus.ref",
                    "read.pos.mean", "read.pos.mean.ref",
                    "read.pos.var", "read.pos.var.ref",
-                   "mdfne", "mdfne.ref", "codon.dir")
+                   "mdfne", "mdfne.ref")
   break_names <- character()
   if (length(read_pos_breaks) > 0L) {
     read_pos_breaks <- as.integer(read_pos_breaks)
@@ -117,8 +116,6 @@ variantSummary <- function(x, read_pos_breaks = NULL, high_base_quality = 0L,
   indel <- nchar(tally$ref) == 0L | nchar(tally$alt) == 0L
   metacols <- DataFrame(tally[meta_names])
   mcols(metacols) <- variantSummaryColumnDescriptions(read_pos_breaks)
-
-  samecols = tally[["ref"]] != tally[["alt"]]
   gr <- with(tally,
              VRanges(seqnames,
                      IRanges(pos,
@@ -186,13 +183,6 @@ normArgTRUEorFALSE <- function(x) {
   x
 }
 
-normArgSingleCharacter <- function(x) {
-  name <- deparse(substitute(x))
-  if (!is(x, "character") || length(x) != 1)
-    stop("'", name, "' should be a single character value")
-  x
-}
-
 .bam_tally_C <- function(bamreader, genome_dir = NULL, db = NULL,
                          which = NULL, read_pos_breaks = NULL,
                          high_base_quality = 0L, desired_read_group = NULL,
@@ -205,8 +195,7 @@ normArgSingleCharacter <- function(x) {
                          ignore_query_Ns = FALSE,
                          indels = FALSE,
                          blocksize = 1000L, verbosep = FALSE,
-                         include_soft_clips = 0L,
-                         cds_iit)
+                         include_soft_clips = 0L)
 {
   if (!is(bamreader, "GmapBamReader"))
     stop("'bamreader' must be a GmapBamReader")
@@ -244,8 +233,7 @@ normArgSingleCharacter <- function(x) {
         normArgTRUEorFALSE(indels),
         normArgSingleInteger(blocksize),
         normArgTRUEorFALSE(verbosep),
-        normArgSingleInteger(include_soft_clips),
-        normArgSingleCharacter(cds_iit))
+        normArgSingleInteger(include_soft_clips))
 }
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -270,8 +258,7 @@ variantSummaryColumnDescriptions <- function(read_pos_breaks) {
     read.pos.var = "Variance in read position for the ALT",
     read.pos.var.ref = "Variance in read position for the REF",
     mdfne = "Median distance from nearest end of read for the ALT",
-    mdfne.ref = "Median distance from nearest end of read for the REF",
-    codon.dir = "Direction of transcription for the codon. 0=positive, 1=negative, 2=NA (not a codon)" )
+    mdfne.ref = "Median distance from nearest end of read for the REF")
   if (length(read_pos_breaks) > 0L) {
     break_desc <- paste0("Raw ALT count in read position range [",
                          head(read_pos_breaks, -1), ",",

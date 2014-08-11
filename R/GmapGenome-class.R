@@ -154,8 +154,7 @@ setReplaceMethod("spliceSites", c("GmapGenome", "GRangesList"),
                    x
                  })
 
-#setReplaceMethod("spliceSites", c("GmapGenome", "TranscriptDb"),
-setReplaceMethod("spliceSites", c("GmapGenome", "TxDb"),
+setReplaceMethod("spliceSites", c("GmapGenome", "TranscriptDb"),
                  function(x, name, value) {
                    spliceSites(x, name) <- exonsBy(value)
                    x

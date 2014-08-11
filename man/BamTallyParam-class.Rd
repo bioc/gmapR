@@ -21,8 +21,7 @@
                 primary_only = FALSE, ignore_duplicates = FALSE,
                 min_depth = 0L, variant_strand = 0L,
                 ignore_query_Ns = FALSE,
-                indels = FALSE, include_soft_clips = 0L,
-                cds_iit = NULL, IIT_BPPARAM = NULL)
+                indels = FALSE, include_soft_clips = 0L)
 }
 \arguments{
   \item{genome}{A \code{GmapGenome} object, or something coercible to one.}
@@ -65,16 +64,8 @@
     of discordance with the reference, and if those clipped regions are
     ignored during counting, the allele fraction is misestimated.
   }
-  \item{exon_iit}{An object which indicates the exons to be used for
-    tallying codons (a character value indicating an existing .iit file, a
-    \code{GRangesList} of exons by gene or a \code{TxDb} object from which
-    to make such a \code{GRangesList}) or \code{NULL} indicating no
-    codon-level tallying should be done.}
-  \item{IIT_BPPARAM}{A \code{BiocParallelParam} object to use when
-    generating the iit file from an R object. Ignored if \code{exon_iit}
-    is a character vector or \code{NULL}
-  }
 }
+
 \seealso{
   \code{\link{bam_tally}}
 }

@@ -8,13 +8,12 @@ read_int (unsigned char **bytes) {
   return x;
 }
 
-static inline unsigned char
+static inline char
 read_char (unsigned char **bytes) {
-  unsigned char x = (*bytes)[0];
+  char x = (*bytes)[0];
   (*bytes)++;
   return x;
 }
-
 
 static inline const char *
 read_string (unsigned char **bytes) {

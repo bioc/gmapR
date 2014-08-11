@@ -1,4 +1,4 @@
-static char rcsid[] = "$Id: bamtally_main.c 141509 2014-07-15 02:46:36Z twu $";
+static char rcsid[] = "$Id: bamtally_main.c 129019 2014-03-03 23:32:29Z twu $";
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -42,11 +42,7 @@ static char *user_genomedir = NULL;
 static char *dbroot = NULL;
 static char *dbversion = NULL;
 
-static char *user_mapdir = NULL;
-static char *map_iitfile = NULL; /* For coding regions */
-
 /* Filters */
-static bool print_noncovered_p = false;
 static int min_depth = 1;
 static int variant_strands = 0;
 static bool genomic_diff_p = false;
@@ -74,7 +70,6 @@ static bool print_indels_p = false;
 static bool print_cycles_p = false;
 static bool print_quality_scores_p = false;
 static bool print_mapq_scores_p = false;
-static bool print_xs_scores_p = false;
 static bool want_genotypes_p = false;
 
 static char *chromosome = NULL;
@@ -113,12 +108,8 @@ static struct option long_options[] = {
   {"dir", required_argument, 0, 'D'},	/* user_genomedir */
   {"db", required_argument, 0, 'd'}, /* dbroot */
 
-  {"mapdir", required_argument, 0, 'M'}, /* user_mapdir */
-  {"map", required_argument, 0, 'm'},	/* map_iitfile */
-
   /* Filters */
-  {"noncovered", no_argument, 0, 0},	   /* print_noncovered_p */
-  {"depth", required_argument, 0, 0}, /* min_depth */
+  {"min-depth", required_argument, 0, 'n'}, /* min_depth */
   {"variants", required_argument, 0, 'X'}, /* variant_strands */
   {"diffs-only", no_argument, 0, 0},	   /* genomic_diff_p */
 
@@ -141,8 +132,7 @@ static struct option long_options[] = {
   {"indels", no_argument, 0, 0}, /* print_indels_p */
   {"cycles", no_argument, 0, 0}, /* print_cycles_p */
   {"quality-scores", no_argument, 0, 'Q'}, /* print_quality_scores_p */
-  {"mapq-scores", no_argument, 0, 0}, /* print_mapq_scores_p */
-  {"xs-scores", no_argument, 0, 'I'}, /* print_xs_scores_p */
+  {"mapq-scores", no_argument, 0, 'M'}, /* print_mapq_scores_p */
   {"genotypes", no_argument, 0, 'G'}, /* want_genotypes_p */
 
   {"pairmax", required_argument, 0, 'p'}, /* alloclength */
@@ -195,9 +185,9 @@ main (int argc, char *argv[]) {
 
   Genomicpos_T chroffset = 0U, chrstart, chrend, chrlength;
 
-  char *iitfile, *mapdir = NULL;
+  char *iitfile;
   int index;
-  IIT_T chromosome_iit, map_iit = NULL;
+  IIT_T chromosome_iit;
   char *chrptr;
   bool allocp;
 
@@ -214,9 +204,8 @@ main (int argc, char *argv[]) {
   extern char *optarg;
   int long_option_index = 0;
   const char *long_name;
-  int len;
 
-  while ((opt = getopt_long(argc,argv,"D:d:M:m:q:n:C:U:P:A:B:p:X:STGQIb:",
+  while ((opt = getopt_long(argc,argv,"D:d:q:n:C:U:P:A:B:p:X:STGQMb:",
 			    long_options, &long_option_index)) != -1) {
     switch (opt) {
     case 0:
@@ -246,8 +235,6 @@ main (int argc, char *argv[]) {
 	print_indels_p = true;
       } else if (!strcmp(long_name,"cycles")) {
 	print_cycles_p = true;
-      } else if (!strcmp(long_name,"noncovered")) {
-	print_noncovered_p = true;
       } else if (!strcmp(long_name,"depth")) {
 	min_depth = atoi(optarg);
       } else if (!strcmp(long_name,"ignore-duplicates")) {
@@ -256,8 +243,6 @@ main (int argc, char *argv[]) {
 	ignore_duplicates_p = false;
       } else if (!strcmp(long_name,"read-group")) {
 	desired_read_group = optarg;
-      } else if (!strcmp(long_name,"mapq-scores")) {
-	print_mapq_scores_p = true;
 
 #if 0
       } else if (!strcmp(long_name,"use-quality-const")) {
@@ -279,15 +264,6 @@ main (int argc, char *argv[]) {
     case 'd': 
       dbroot = (char *) CALLOC(strlen(optarg)+1,sizeof(char));
       strcpy(dbroot,optarg);
-      break;
-
-    case 'M': user_mapdir = optarg; break;
-    case 'm': 
-      map_iitfile = (char *) CALLOC(strlen(optarg)+1,sizeof(char));
-      strcpy(map_iitfile,optarg);
-      if ((len = strlen(map_iitfile)) > 4 && strcmp(&(map_iitfile[len-4]),".iit") == 0) {
-	map_iitfile[len-4] = '\0';
-      }
       break;
 
     case 'A':
@@ -324,7 +300,7 @@ main (int argc, char *argv[]) {
     case 'T': print_totals_p = true; break;
     case 'G': want_genotypes_p = true; break;
     case 'Q': print_quality_scores_p = true; break;
-    case 'I': print_xs_scores_p = true; break;
+    case 'M': print_mapq_scores_p = true; break;
 
     case 'q': minimum_mapq = atoi(optarg); break;
     case 'n': maximum_nhits = atoi(optarg); break;
@@ -384,22 +360,6 @@ main (int argc, char *argv[]) {
   genome = Genome_new(genomesubdir,fileroot,/*snps_root*/NULL,/*uncompressedp*/false,
 		      /*access*/USE_MMAP_ONLY);
 
-  if (map_iitfile != NULL) {
-    mapdir = Datadir_find_mapdir(user_mapdir,genomesubdir,fileroot);
-    if ((map_iit = IIT_read(map_iitfile,/*name*/NULL,true,/*divread*/READ_ALL,/*divstring*/NULL,
-			    /*add_iit_p*/true,/*labels_read_p*/true)) == NULL) {
-      iitfile = (char*) CALLOC(strlen(mapdir)+strlen("/")+strlen(map_iitfile)+1,sizeof(char));
-      sprintf(iitfile,"%s/%s",mapdir,map_iitfile);
-      if ((map_iit = IIT_read(iitfile,/*name*/NULL,true,/*divread*/READ_ALL,/*divstring*/NULL,
-			      /*add_iit_p*/true,/*labels_read_p*/true)) == NULL) {
-	fprintf(stderr,"Cannot open IIT file %s\n",iitfile);
-      }
-      FREE(iitfile);
-    }
-    FREE(map_iitfile);
-  }
-
-
   bamreader = Bamread_new(argv[0]);
   if (whole_genome_p == true) {
     iitfile = (char *) CALLOC(strlen(genomesubdir)+strlen("/")+
@@ -412,12 +372,11 @@ main (int argc, char *argv[]) {
     if (via_iit_p == true) {
       bamtally_iit = Bamtally_iit(bamreader,/*chr*/NULL,/*bam_lacks_chr*/NULL,
 				  /*chrstart*/0,/*chrend*/0,
-				  genome,chromosome_iit,map_iit,alloclength,
+				  genome,chromosome_iit,alloclength,
 				  desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
 				  need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
 				  min_depth,variant_strands,ignore_query_Ns_p,
-				  print_indels_p,blocksize,verbosep,readlevel_p,max_softclip,
-				  print_xs_scores_p,print_noncovered_p);
+				  print_indels_p,blocksize,verbosep,readlevel_p,max_softclip);
     } else {
       for (index = 1; index <= IIT_total_nintervals(chromosome_iit); index++) {
 	chromosome = IIT_label(chromosome_iit,index,&allocp);
@@ -439,8 +398,8 @@ main (int argc, char *argv[]) {
 	  grand_total = Bamtally_run(&tally_matches,&tally_mismatches,
 				     &intervallist,&labellist,&datalist,
 				     quality_counts_match,quality_counts_mismatch,
-				     bamreader,genome,chromosome,chroffset,chrstart,chrend,map_iit,
-				     alloclength,/*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
+				     bamreader,genome,chromosome,chroffset,chrstart,chrend,alloclength,
+				     /*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
 				     desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
 				     need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
 				     /*ignore_lowend_p*/false,/*ignore_highend_p*/false,
@@ -448,8 +407,8 @@ main (int argc, char *argv[]) {
 				     quality_score_adj,min_depth,variant_strands,
 				     genomic_diff_p,signed_counts_p,ignore_query_Ns_p,
 				     print_indels_p,print_totals_p,print_cycles_p,print_quality_scores_p,
-				     print_mapq_scores_p,print_xs_scores_p,want_genotypes_p,verbosep,readlevel_p,
-				     max_softclip,print_noncovered_p,/*bamfile*/argv[0]);
+				     print_mapq_scores_p,want_genotypes_p,verbosep,readlevel_p,
+				     max_softclip);
 	  Bamread_unlimit_region(bamreader);
 	}
 	if (output_type == OUTPUT_TOTAL) {
@@ -480,12 +439,12 @@ main (int argc, char *argv[]) {
       FREE(iitfile);
 
       bamtally_iit = Bamtally_iit(bamreader,/*chr*/chromosome,/*bam_lacks_chr*/NULL,
-				  chrstart,chrend,genome,chromosome_iit,map_iit,alloclength,
+				  chrstart,chrend,genome,chromosome_iit,alloclength,
 				  desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
 				  need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
 				  min_depth,variant_strands,ignore_query_Ns_p,
 				  print_indels_p,blocksize,verbosep,readlevel_p,
-				  max_softclip,print_xs_scores_p,print_noncovered_p);
+				  max_softclip);
       IIT_free(&chromosome_iit);
 
     } else {
@@ -504,8 +463,8 @@ main (int argc, char *argv[]) {
 	grand_total = Bamtally_run(&tally_matches,&tally_mismatches,
 				   &intervallist,&labellist,&datalist,
 				   quality_counts_match,quality_counts_mismatch,
-				   bamreader,genome,chromosome,chroffset,chrstart,chrend,map_iit,
-				   alloclength,/*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
+				   bamreader,genome,chromosome,chroffset,chrstart,chrend,alloclength,
+				   /*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
 				   desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
 				   need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
 				   /*ignore_lowend_p*/false,/*ignore_highend_p*/false,
@@ -513,8 +472,8 @@ main (int argc, char *argv[]) {
 				   quality_score_adj,min_depth,variant_strands,
 				   genomic_diff_p,signed_counts_p,ignore_query_Ns_p,
 				   print_indels_p,print_totals_p,print_cycles_p,print_quality_scores_p,
-				   print_mapq_scores_p,print_xs_scores_p,want_genotypes_p,verbosep,readlevel_p,
-				   max_softclip,print_noncovered_p,/*bamfile*/argv[0]);
+				   print_mapq_scores_p,want_genotypes_p,verbosep,readlevel_p,
+				   max_softclip);
 	Bamread_unlimit_region(bamreader);
       }
       if (output_type == OUTPUT_TOTAL) {
@@ -564,8 +523,8 @@ main (int argc, char *argv[]) {
 	  grand_total = Bamtally_run(&tally_matches,&tally_mismatches,
 				     &intervallist,&labellist,&datalist,
 				     quality_counts_match,quality_counts_mismatch,
-				     bamreader,genome,chromosome,chroffset,chrstart,chrend,map_iit,
-				     alloclength,/*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
+				     bamreader,genome,chromosome,chroffset,chrstart,chrend,alloclength,
+				     /*resolve_low_table*/NULL,/*resolve_high_table*/NULL,
 				     desired_read_group,minimum_mapq,good_unique_mapq,maximum_nhits,
 				     need_concordant_p,need_unique_p,need_primary_p,ignore_duplicates_p,
 				     /*ignore_lowend_p*/false,/*ignore_highend_p*/false,
@@ -573,8 +532,8 @@ main (int argc, char *argv[]) {
 				     quality_score_adj,min_depth,variant_strands,
 				     genomic_diff_p,signed_counts_p,ignore_query_Ns_p,
 				     print_indels_p,print_totals_p,print_cycles_p,print_quality_scores_p,
-				     print_mapq_scores_p,print_xs_scores_p,want_genotypes_p,verbosep,readlevel_p,
-				     max_softclip,print_noncovered_p,/*bamfile*/argv[0]);
+				     print_mapq_scores_p,want_genotypes_p,verbosep,readlevel_p,
+				     max_softclip);
 	  Bamread_unlimit_region(bamreader);
 	}
 	if (output_type == OUTPUT_TOTAL) {
@@ -594,13 +553,6 @@ main (int argc, char *argv[]) {
 
   if (genome != NULL) {
     Genome_free(&genome);
-  }
-
-  if (map_iit != NULL) {
-    IIT_free(&map_iit);
-  }
-  if (mapdir != NULL) {
-    FREE(mapdir);
   }
 
   FREE(fileroot);
@@ -704,16 +656,11 @@ Compute options\n\
                                    in their BAM lines\n\
   --include-soft-clips=INT       Include soft clips of up to this length in the tally results\n\
                                    (May want to set to maximum read length) [default = 0]\n\
-                                   Soft clips as part of terminal alignments (marked with PG:Z:T\n\
-                                   by GSNAP) are excluded\n\
 \n\
 Coordinates\n\
   --whole-genome                 Compute tally over entire genome\n\
 \n\
 Filtering of output (options may be combined)\n\
-  --noncovered                   Print positions even if not covered by reads (somewhat equivalent to --depth=0,\n\
-                                   but includes all positions in the given range\n\
-                                   This option invalidates all other filtering options\n\
   --depth=INT                    Print only positions with this depth or more\n\
   -X, --variants=INT             Print only positions showing a variant allele\n\
                                    Argument of 0 means all positions (default)\n\
@@ -732,8 +679,7 @@ Output options\n\
   --indels                       Print output for insertions and deletions\n\
   --cycles                       Include details about cycles\n\
   -Q, --quality-scores           Include details about quality scores\n\
-  --mapq-scores                  Include details about mapping quality (MAPQ) scores\n\
-  -I, --xs-scores                Include details about splice strand (XS) scores\n\
+  -M, --mapq-scores              Include details about mapping quality (MAPQ) scores\n\
   --verbose                      Print information about problematic reads to stderr\n\
 \n\
 ");
