@@ -11,8 +11,25 @@
 # through svn).
 ##########################################################
 
+fixMakefile = function() {
+    mkfile = file.path("src/Makefile")
+    txt = readLines(mkfile)
+    txt2 = gsub("(--disable-maintainer-mode.*)", "\\\\ # \\1;", txt)
+    writeLines(txt2, con = mkfile)
+}
+
+unfixMakefile = function() {
+    mkfile = file.path("src/Makefile")
+    txt = readLines(mkfile)
+    txt2 = gsub("\\\\ # (.*);", "\\1", txt)
+    writeLines(txt2, con = mkfile)
+}
+    
+
 updateGMAPSrc <- function() {
-  gmapSVNProj <-
+
+    mkfile = 
+    gmapSVNProj <-
     "http://resscm/bioinfo/projects/gmap/releases/internal-2013-10-01"
   extractDirGmap <- file.path(getwd(), "src/gmap")
   .bootstrapAndExtract(projectSVNURL=gmapSVNProj, extractDir=extractDirGmap,
@@ -20,7 +37,8 @@ updateGMAPSrc <- function() {
   
 }
 updateGSTRUCTSrc <- function() {
-  gstructSVNProj <- "http://resscm/bioinfo/projects/gstruct/releases/internal-2014-04-09"
+  #gstructSVNProj <- "http://resscm/bioinfo/projects/gstruct/releases/internal-2014-04-09"
+    gstructSVNProj <- "http://resscm/bioinfo/projects/gstruct/branches/2014-07-10-amino-acid-tally"
   extractDirGstruct <- file.path(getwd(), "src/gstruct")
   .bootstrapAndExtract(projectSVNURL=gstructSVNProj,
                        extractDir=extractDirGstruct,
