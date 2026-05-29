@@ -31,3 +31,4 @@ Collate: GmapBamReader-class.R GmapGenomeDirectory-class.R
         snpindex-command.R system.R test_gmapR_package.R
         makeGmapGenomePackage.R TP53Genome.R utils.R asSystemCall.R
 biocViews: Alignment
+Config/Bioconductor/UnsupportedPlatforms: windows
